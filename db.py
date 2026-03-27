@@ -249,6 +249,13 @@ def get_user(email: str) -> dict | None:
             d["api_keys"] = {}
         return d
 
+def delete_user(email: str):
+    with get_conn() as conn:
+        # Delete manually since owner_email doesn't have an ON DELETE CASCADE foreign key constraint to users
+        conn.execute("DELETE FROM jobs WHERE owner_email=?", (email,))
+        conn.execute("DELETE FROM users WHERE email=?", (email,))
+
+
 
 def create_user(email: str, password: str) -> None:
     with get_conn() as conn:
