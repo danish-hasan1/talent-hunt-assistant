@@ -12,7 +12,7 @@ from dotenv import load_dotenv   # pip install python-dotenv
 
 load_dotenv()
 
-from db import init_db, get_user, upsert_user, get_conn
+from db import init_db, get_user, upsert_user, get_conn, create_user, verify_user_credentials
 from jd_analysis import _parse_json
 
 st.set_page_config(
@@ -32,12 +32,183 @@ if not st.session_state.get("user_email"):
     st.markdown(
         """
         <style>
-        .tha-body { padding-top: 2rem; padding-bottom: 3rem; }
-        .tha-hero-title { font-size: 2.6rem; font-weight: 700; margin-bottom: 0.35rem; }
-        .tha-hero-subtitle { font-size: 1.1rem; color: #6c757d; margin-bottom: 1.6rem; max-width: 640px; }
-        .tha-pill { display:inline-block; padding:0.2rem 0.9rem; border-radius:999px; background:#f1f3f5; font-size:0.8rem; margin-right:0.4rem; margin-bottom:0.4rem;}
-        .tha-section-title { font-size:1.1rem; font-weight:600; margin-bottom:0.4rem; }
-        .tha-muted { color:#6c757d; font-size:0.9rem; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        .tha-body { 
+            font-family: 'Inter', sans-serif;
+            padding-top: 2rem; 
+            padding-bottom: 4rem; 
+            color: #1e293b;
+        }
+        .tha-hero-title { 
+            font-size: 3.5rem; 
+            font-weight: 800; 
+            margin-bottom: 1.5rem; 
+            line-height: 1.1;
+            background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+        .tha-hero-subtitle { 
+            font-size: 1.25rem; 
+            color: #475569; 
+            margin-bottom: 2rem; 
+            max-width: 680px; 
+            line-height: 1.6;
+            font-weight: 400;
+        }
+        .tha-pills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+        }
+        .tha-pill { 
+            display: inline-flex;
+            align-items: center;
+            padding: 0.4rem 1rem; 
+            border-radius: 9999px; 
+            background: rgba(37, 99, 235, 0.08); 
+            color: #2563eb;
+            font-size: 0.85rem; 
+            font-weight: 600;
+            border: 1px solid rgba(37, 99, 235, 0.15);
+            transition: all 0.2s ease;
+        }
+        .tha-pill:hover {
+            background: rgba(37, 99, 235, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1), 0 2px 4px -2px rgba(37, 99, 235, 0.1);
+        }
+        .tha-list-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }
+        .tha-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            margin-bottom: 2rem;
+        }
+        .tha-list li {
+            position: relative;
+            padding-left: 1.75rem;
+            margin-bottom: 0.75rem;
+            color: #475569;
+            line-height: 1.5;
+            font-size: 1.05rem;
+        }
+        .tha-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #10b981;
+            font-weight: bold;
+        }
+        
+        /* Streamlit native container override */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 16px !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02) !important;
+            border: 1px solid #e2e8f0 !important;
+            background: #ffffff !important;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"]:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+            transform: translateY(-3px);
+            border-color: #cbd5e1 !important;
+        }
+        
+        .tha-feature-icon {
+            font-size: 2.2rem;
+            margin-bottom: 1.25rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 3.5rem;
+            height: 3.5rem;
+            background: #f8fafc;
+            border-radius: 14px;
+            border: 1px solid #f1f5f9;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+            transition: all 0.3s ease;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"]:hover .tha-feature-icon {
+            background: #eff6ff;
+            border-color: #dbeafe;
+            transform: scale(1.05);
+        }
+        .tha-section-title { 
+            font-size: 1.35rem; 
+            font-weight: 700; 
+            margin-bottom: 0.75rem; 
+            color: #0f172a;
+            letter-spacing: -0.01em;
+        }
+        .tha-feature-text { 
+            color: #64748b; 
+            font-size: 1.05rem; 
+            line-height: 1.6;
+        }
+        
+        hr.tha-divider {
+            border: 0;
+            height: 1px;
+            background: linear-gradient(to right, transparent, #e2e8f0, transparent);
+            margin: 4rem 0;
+        }
+        
+        .tha-hiw-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 1.75rem;
+            padding: 1rem;
+            border-radius: 12px;
+            transition: all 0.2s ease;
+        }
+        .tha-hiw-step:hover {
+            background: #f8fafc;
+        }
+        .tha-hiw-number {
+            flex-shrink: 0;
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-right: 1.25rem;
+            font-size: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+        }
+        .tha-hiw-content {
+            padding-top: 0.2rem;
+            color: #475569;
+            line-height: 1.6;
+            font-size: 1.1rem;
+        }
+        .tha-hiw-content strong {
+            color: #0f172a;
+        }
+        
+        /* Subtle animation for the title gradient */
+        .tha-hero-title {
+            background-size: 200% auto;
+            animation: textShine 5s linear infinite;
+        }
+        @keyframes textShine {
+            to {
+                background-position: 200% center;
+            }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -45,80 +216,154 @@ if not st.session_state.get("user_email"):
 
     with st.container():
         st.markdown("<div class='tha-body'>", unsafe_allow_html=True)
-        hero_left, hero_right = st.columns([3, 2])
+        hero_left, hero_spacer, hero_right = st.columns([1.1, 0.1, 0.9])
         with hero_left:
             st.markdown("<div class='tha-hero-title'>Talent Hunt Assistant</div>", unsafe_allow_html=True)
             st.markdown(
                 "<div class='tha-hero-subtitle'>Turn messy job descriptions into structured searches, reusable pipelines, and AI‑scored shortlists without handing everything to a third‑party ATS.</div>",
                 unsafe_allow_html=True,
             )
-            st.markdown("**Built for senior recruiters and sourcing leads who:**")
+            
+            st.markdown("<div class='tha-list-title'>Built for senior recruiters and sourcing leads who:</div>", unsafe_allow_html=True)
             st.markdown(
-                "- Want JD-driven, repeatable search setups instead of ad‑hoc strings.\n"
-                "- Run multi‑region searches and need a single workspace to track them.\n"
-                "- Prefer owning their own candidate database rather than renting access."
+                """
+                <ul class='tha-list'>
+                    <li>Want JD-driven, repeatable search setups instead of ad‑hoc strings.</li>
+                    <li>Run multi‑region searches and need a single workspace to track them.</li>
+                    <li>Prefer owning their own candidate database rather than renting access.</li>
+                </ul>
+                """,
+                unsafe_allow_html=True
             )
-            st.markdown("")
-            st.markdown("**Signals you control**")
+            
+            st.markdown("<div class='tha-list-title' style='margin-top:2.5rem;'>Signals you control</div>", unsafe_allow_html=True)
             st.markdown(
-                "<span class='tha-pill'>JD‑driven filters</span>"
-                "<span class='tha-pill'>Multi‑source X‑ray</span>"
-                "<span class='tha-pill'>AI scoring</span>"
-                "<span class='tha-pill'>Per‑job pipeline</span>",
+                """
+                <div class='tha-pills-container'>
+                    <span class='tha-pill'>🎯 JD‑driven filters</span>
+                    <span class='tha-pill'>🌐 Multi‑source X‑ray</span>
+                    <span class='tha-pill'>🤖 AI scoring</span>
+                    <span class='tha-pill'>📊 Per‑job pipeline</span>
+                </div>
+                """,
                 unsafe_allow_html=True,
             )
+            
         with hero_right:
+            st.markdown("<div style='padding-top: 2rem;'></div>", unsafe_allow_html=True)
             with st.container(border=True):
-                st.markdown("#### Sign in")
-                st.caption("Use your work email to keep API keys and searches separate.")
-                email = st.text_input("Work email", key="landing_email")
-                if st.button("Continue", type="primary") and email.strip():
-                    user_email = email.strip().lower()
-                    st.session_state.user_email = user_email
-                    existing = get_user(user_email)
-                    if not existing:
-                        upsert_user(user_email, {}, "groq")
-                    st.experimental_rerun()
+                st.markdown("<div style='padding: 0.5rem;'>", unsafe_allow_html=True)
+                st.markdown("<h3 style='margin-top: 0; color: #0f172a; font-weight: 700; font-family: Inter;'>Welcome 👋</h3>", unsafe_allow_html=True)
+                st.caption("Create an account or sign in with your work email to access your private searches and API keys.")
+                st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
 
-        st.markdown("---")
+                tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
+
+                with tab_login:
+                    login_email = st.text_input("Email", key="login_email", placeholder="name@company.com")
+                    login_password = st.text_input("Password", key="login_password", type="password")
+                    if st.button("Log in", key="login_btn", type="primary", use_container_width=True):
+                        if not login_email.strip() or not login_password:
+                            st.error("Enter both email and password.")
+                        else:
+                            user = verify_user_credentials(login_email.strip().lower(), login_password)
+                            if not user:
+                                st.error("Invalid email or password.")
+                            else:
+                                st.session_state.user_email = login_email.strip().lower()
+                                st.rerun()
+
+                with tab_signup:
+                    signup_email = st.text_input("Work email", key="signup_email", placeholder="name@company.com")
+                    signup_password = st.text_input("Password", key="signup_password", type="password")
+                    signup_password2 = st.text_input("Confirm password", key="signup_password2", type="password")
+                    if st.button("Create account", key="signup_btn", type="primary", use_container_width=True):
+                        if not signup_email.strip() or not signup_password or not signup_password2:
+                            st.error("Fill in all fields.")
+                        elif signup_password != signup_password2:
+                            st.error("Passwords do not match.")
+                        else:
+                            email_norm = signup_email.strip().lower()
+                            try:
+                                create_user(email_norm, signup_password)
+                            except ValueError:
+                                st.error("An account with this email already exists. Use Log in instead.")
+                            else:
+                                st.session_state.user_email = email_norm
+                                st.rerun()
+
+                st.markdown("<div style='text-align:center; margin-top:1.5rem;'><small style='color:#94a3b8; font-weight: 500;'>Your data remains within your environment.</small></div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("<hr class='tha-divider'>", unsafe_allow_html=True)
 
         feat_col1, feat_col2, feat_col3 = st.columns(3)
         with feat_col1:
-            st.markdown("<div class='tha-section-title'>Analyse any JD</div>", unsafe_allow_html=True)
-            st.markdown(
-                "<span class='tha-muted'>Break job descriptions into titles, skills, seniority and non‑negotiables with one click, then tweak filters like you would in a world‑class RPS.</span>",
-                unsafe_allow_html=True,
-            )
+            with st.container(border=True):
+                st.markdown("<div style='padding: 1rem 0.5rem;'>", unsafe_allow_html=True)
+                st.markdown("<div class='tha-feature-icon'>⚡</div>", unsafe_allow_html=True)
+                st.markdown("<div class='tha-section-title'>Analyse any JD</div>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='tha-feature-text'>Break job descriptions into titles, skills, seniority and non‑negotiables with one click, then tweak filters like you would in a world‑class RPS.</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
         with feat_col2:
-            st.markdown("<div class='tha-section-title'>Source across the open web</div>", unsafe_allow_html=True)
-            st.markdown(
-                "<span class='tha-muted'>Generate X‑ray searches for LinkedIn, GitHub, Google and major regional job boards so you can work where candidates actually are.</span>",
-                unsafe_allow_html=True,
-            )
+            with st.container(border=True):
+                st.markdown("<div style='padding: 1rem 0.5rem;'>", unsafe_allow_html=True)
+                st.markdown("<div class='tha-feature-icon'>🌍</div>", unsafe_allow_html=True)
+                st.markdown("<div class='tha-section-title'>Source everywhere</div>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='tha-feature-text'>Generate X‑ray searches for LinkedIn, GitHub, Google and major regional job boards so you can directly target candidates where they actually are.</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
         with feat_col3:
-            st.markdown("<div class='tha-section-title'>Own your candidate DB</div>", unsafe_allow_html=True)
-            st.markdown(
-                "<span class='tha-muted'>Save candidates once, attach them to multiple roles, track stages and match scores, and keep everything inside a database you control.</span>",
-                unsafe_allow_html=True,
-            )
+            with st.container(border=True):
+                st.markdown("<div style='padding: 1rem 0.5rem;'>", unsafe_allow_html=True)
+                st.markdown("<div class='tha-feature-icon'>🏦</div>", unsafe_allow_html=True)
+                st.markdown("<div class='tha-section-title'>Own your DB</div>", unsafe_allow_html=True)
+                st.markdown(
+                    "<div class='tha-feature-text'>Save candidates once, attach them to multiple roles, track stages and match scores, and keep everything inside a unified database you control.</div>",
+                    unsafe_allow_html=True,
+                )
+                st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("---")
+        st.markdown("<hr class='tha-divider'>", unsafe_allow_html=True)
 
-        how_col1, how_col2 = st.columns([2, 3])
+        how_col1, how_col2 = st.columns([1.1, 0.9])
         with how_col1:
-            st.markdown("**How it works**")
+            st.markdown("<div class='tha-section-title' style='margin-bottom: 2rem; font-size: 1.8rem;'>How it works</div>", unsafe_allow_html=True)
             st.markdown(
-                "1. Paste or load a JD and run analysis.\n"
-                "2. Review and adjust the auto‑generated filters.\n"
-                "3. Open the suggested searches and add strong profiles into the pipeline.\n"
-                "4. Let AI score fit vs role, then drive outreach from your own shortlist."
+                """
+                <div class='tha-hiw-step'>
+                    <div class='tha-hiw-number'>1</div>
+                    <div class='tha-hiw-content'><strong>Paste or load a JD</strong> and run analysis.</div>
+                </div>
+                <div class='tha-hiw-step'>
+                    <div class='tha-hiw-number'>2</div>
+                    <div class='tha-hiw-content'><strong>Review and adjust</strong> the auto‑generated filters.</div>
+                </div>
+                <div class='tha-hiw-step'>
+                    <div class='tha-hiw-number'>3</div>
+                    <div class='tha-hiw-content'><strong>Open suggested searches</strong> and add strong profiles to the pipeline.</div>
+                </div>
+                <div class='tha-hiw-step'>
+                    <div class='tha-hiw-number'>4</div>
+                    <div class='tha-hiw-content'><strong>Let AI score fit</strong> vs role, then drive outreach from your list.</div>
+                </div>
+                """,
+                unsafe_allow_html=True
             )
         with how_col2:
-            st.markdown("**Why it stays yours**")
-            st.markdown(
-                "<span class='tha-muted'>All data lives in your environment. API keys are stored per user, and the tool works with commodity LLM providers instead of locking you into one vendor.</span>",
-                unsafe_allow_html=True,
+            st.markdown("<div style='padding: 1.5rem 0 0 2rem;'>", unsafe_allow_html=True)
+            st.markdown("<div class='tha-section-title' style='margin-bottom: 1.5rem; font-size: 1.5rem;'>Why it stays yours</div>", unsafe_allow_html=True)
+            st.info(
+                "**Data Sovereignty First**\n\nAll data lives entirely in your localized environment. "
+                "API keys are stored securely on a per-user basis, and the application seamlessly interfaces with your choice of commodity LLM providers "
+                "(Groq, OpenAI, Anthropic, Gemini, Qwen). You remain independent, with zero vendor lock-in and complete control over your candidate intelligence."
             )
+            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
@@ -325,6 +570,23 @@ elif page == "Settings":
             st.markdown(f"**Email**: {user_email}")
         with col_p2:
             st.markdown(f"**Preferred provider**: {preferred_provider or 'groq'}")
+
+        if st.button("Log out"):
+            for key in list(st.session_state.keys()):
+                if key.startswith("f_") or key in (
+                    "user_email",
+                    "jd_text",
+                    "filter_config",
+                    "p1_out",
+                    "p2_out",
+                    "p3_out",
+                    "job_id",
+                    "search_done",
+                    "results",
+                    "search_links",
+                ):
+                    del st.session_state[key]
+            st.rerun()
 
         st.divider()
         st.subheader("API keys")
