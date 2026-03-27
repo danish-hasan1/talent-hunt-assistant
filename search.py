@@ -635,10 +635,22 @@ if search_clicked and not missing_fields:
     st.session_state.results = results
     st.session_state.search_links = search_links
     if not results:
-        st.info(
-            "Search triggered. Use the search links below and the boolean strings to explore candidates in your browser. "
-            "Existing DB was also searched but no matches were found yet."
-        )
+        st.info("Search triggered. Review the AI matches below or explore candidates instantly using the generated external pipeline links.")
+
+links = st.session_state.get("search_links") or []
+if links:
+    html_str = "<div style='display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1.5rem; justify-content: center;'>"
+    for item in links:
+        label = item.get("label", "Search")
+        url = item.get("url", "")
+        if url:
+            icon = "↗"
+            if "LinkedIn" in label: icon = "💼"
+            elif "GitHub" in label: icon = "💻"
+            elif "Google" in label: icon = "🔍"
+            html_str += f"<a class='tha-search-link-btn' href='{url}' target='_blank'>{icon} {label}</a>"
+    html_str += "</div>"
+    st.markdown(html_str, unsafe_allow_html=True)
 
 
 # ===========================================================================
@@ -735,39 +747,7 @@ if st.session_state.search_done:
             st.code(boolean_strings["linkedin_balanced"], language="text")
             st.code(boolean_strings["linkedin_broad"],    language="text")
             st.code(boolean_strings["linkedin_narrow"],   language="text")
-            links = st.session_state.get("search_links") or []
-            if links:
-                st.markdown("**Search links**")
-                st.markdown(
-                    """
-                    <style>
-                    .tha-search-btn {
-                        display:inline-block;
-                        margin:0.2rem 0.4rem 0.2rem 0;
-                        padding:0.25rem 0.8rem;
-                        border-radius:999px;
-                        border:1px solid #dee2e6;
-                        background:#f8f9fa;
-                        font-size:0.85rem;
-                        text-decoration:none;
-                        color:#212529;
-                    }
-                    .tha-search-btn:hover {
-                        background:#e9ecef;
-                    }
-                    </style>
-                    """,
-                    unsafe_allow_html=True,
-                )
-                for item in links:
-                    label = item.get("label", "Search")
-                    url = item.get("url", "")
-                    if not url:
-                        continue
-                    st.markdown(
-                        f"<a class='tha-search-btn' href='{url}' target='_blank'>{label}</a>",
-                        unsafe_allow_html=True,
-                    )
+
         else:
             st.info("Fill in filters above to generate boolean strings.")
 
