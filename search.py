@@ -86,31 +86,6 @@ def _init_state():
 
 _init_state()
 
-job_to_load = st.session_state.pop("job_to_load", None)
-if job_to_load:
-    job = get_job(job_to_load)
-    if job:
-        st.session_state.jd_text = job.get("jd_text", "")
-        fc_loaded = job.get("filter_config") or {}
-        st.session_state.filter_config = fc_loaded
-        try:
-            from jd_analysis import _parse_json as _parse_json_for_load
-            if job.get("p1_analysis"):
-                st.session_state.p1_out = _parse_json_for_load(job["p1_analysis"])
-            if job.get("p2_matrix"):
-                st.session_state.p2_out = _parse_json_for_load(job["p2_matrix"])
-            if job.get("p3_params"):
-                st.session_state.p3_out = _parse_json_for_load(job["p3_params"])
-        except Exception:
-            st.session_state.p1_out = {}
-            st.session_state.p2_out = {}
-            st.session_state.p3_out = {}
-        st.session_state.job_id = job_to_load
-        st.session_state.chain_done = True
-        st.session_state.chain_error = None
-        _populate_filters_from_chain()
-        _reset_search()
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -139,6 +114,32 @@ def _populate_filters_from_chain():
     st.session_state.f_language      = fc.get("language", "")
     st.session_state.f_relocation_ok = fc.get("relocation_ok", False)
     st.session_state.f_visa_sponsorship = fc.get("visa_sponsorship", False)
+
+
+job_to_load = st.session_state.pop("job_to_load", None)
+if job_to_load:
+    job = get_job(job_to_load)
+    if job:
+        st.session_state.jd_text = job.get("jd_text", "")
+        fc_loaded = job.get("filter_config") or {}
+        st.session_state.filter_config = fc_loaded
+        try:
+            from jd_analysis import _parse_json as _parse_json_for_load
+            if job.get("p1_analysis"):
+                st.session_state.p1_out = _parse_json_for_load(job["p1_analysis"])
+            if job.get("p2_matrix"):
+                st.session_state.p2_out = _parse_json_for_load(job["p2_matrix"])
+            if job.get("p3_params"):
+                st.session_state.p3_out = _parse_json_for_load(job["p3_params"])
+        except Exception:
+            st.session_state.p1_out = {}
+            st.session_state.p2_out = {}
+            st.session_state.p3_out = {}
+        st.session_state.job_id = job_to_load
+        st.session_state.chain_done = True
+        st.session_state.chain_error = None
+        _populate_filters_from_chain()
+        _reset_search()
 
 
 def _current_filter_config() -> dict:
@@ -320,6 +321,7 @@ if st.session_state.mode == "jd":
                 job_id = create_job(
                     title=job_title,
                     jd_text=st.session_state.jd_text,
+                    owner_email=st.session_state.get("user_email"),
                 )
                 update_job_chain_outputs(
                     job_id,
@@ -736,8 +738,36 @@ if st.session_state.search_done:
             links = st.session_state.get("search_links") or []
             if links:
                 st.markdown("**Search links**")
-                for i, url in enumerate(links, start=1):
-                    st.markdown(f"- [{url}]({url})")
+                st.markdown(
+                    """
+                    <style>
+                    .tha-search-btn {
+                        display:inline-block;
+                        margin:0.2rem 0.4rem 0.2rem 0;
+                        padding:0.25rem 0.8rem;
+                        border-radius:999px;
+                        border:1px solid #dee2e6;
+                        background:#f8f9fa;
+                        font-size:0.85rem;
+                        text-decoration:none;
+                        color:#212529;
+                    }
+                    .tha-search-btn:hover {
+                        background:#e9ecef;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                for item in links:
+                    label = item.get("label", "Search")
+                    url = item.get("url", "")
+                    if not url:
+                        continue
+                    st.markdown(
+                        f"<a class='tha-search-btn' href='{url}' target='_blank'>{label}</a>",
+                        unsafe_allow_html=True,
+                    )
         else:
             st.info("Fill in filters above to generate boolean strings.")
 

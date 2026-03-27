@@ -10,6 +10,10 @@ Tables:
 
 import sqlite3
 import json
+import hashlib
+import hmac
+import base64
+import os
 from datetime import datetime
 from config import DB_PATH
 
@@ -36,18 +40,16 @@ CREATE TABLE IF NOT EXISTS jobs (
     title           TEXT    NOT NULL,
     jd_text         TEXT,
     jd_url          TEXT,
+    owner_email     TEXT,
 
-    -- Prompt chain outputs (stored as JSON strings)
-    p1_analysis     TEXT,   -- Prompt 1 full output
-    p2_matrix       TEXT,   -- Prompt 2 full output
-    p3_params       TEXT,   -- Prompt 3 full output
+    p1_analysis     TEXT,
+    p2_matrix       TEXT,
+    p3_params       TEXT,
 
-    -- Parsed filter config (JSON)
-    filter_config   TEXT,   -- {titles, must_skills, nice_skills, exp_range,
-                            --  seniority, location, industry, exclude, sources}
+    filter_config   TEXT,
     boolean_string  TEXT,
 
-    status          TEXT    DEFAULT 'draft',  -- draft | active | closed
+    status          TEXT    DEFAULT 'draft',
     created_at      TEXT    DEFAULT (datetime('now')),
     updated_at      TEXT    DEFAULT (datetime('now'))
 );
@@ -105,6 +107,8 @@ CREATE INDEX IF NOT EXISTS idx_outreach_jc ON outreach(job_id, candidate_id);
 
 CREATE TABLE IF NOT EXISTS users (
     email            TEXT PRIMARY KEY,
+    password_hash    TEXT,
+    password_salt    TEXT,
     api_keys         TEXT,
     preferred_provider TEXT,
     created_at       TEXT DEFAULT (datetime('now')),
@@ -121,18 +125,37 @@ def init_db():
             conn.execute("ALTER TABLE candidates ADD COLUMN linkedin_pdf_path TEXT")
         except Exception:
             pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN password_salt TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE jobs ADD COLUMN owner_email TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN password_salt TEXT")
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
 # Jobs
 # ---------------------------------------------------------------------------
 
-def create_job(title: str, jd_text: str = "", jd_url: str = "") -> int:
-    """Insert a new job and return its id."""
+def create_job(title: str, jd_text: str = "", jd_url: str = "", owner_email: str | None = None) -> int:
     with get_conn() as conn:
         cur = conn.execute(
-            "INSERT INTO jobs (title, jd_text, jd_url) VALUES (?,?,?)",
-            (title, jd_text, jd_url)
+            "INSERT INTO jobs (title, jd_text, jd_url, owner_email) VALUES (?,?,?,?)",
+            (title, jd_text, jd_url, owner_email)
         )
         return cur.lastrowid
 
@@ -227,6 +250,44 @@ def get_user(email: str) -> dict | None:
         return d
 
 
+def create_user(email: str, password: str) -> None:
+    with get_conn() as conn:
+        existing = conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone()
+        if existing:
+            raise ValueError("User already exists")
+        salt = os.urandom(16)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
+        salt_b64 = base64.b64encode(salt).decode("ascii")
+        hash_b64 = base64.b64encode(dk).decode("ascii")
+        conn.execute(
+            "INSERT INTO users (email, password_hash, password_salt, api_keys, preferred_provider) VALUES (?,?,?,?,?)",
+            (email, hash_b64, salt_b64, json.dumps({}), "groq"),
+        )
+
+
+def verify_user_credentials(email: str, password: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        if not row:
+            return None
+        if not row["password_hash"] or not row["password_salt"]:
+            return None
+        salt = base64.b64decode(row["password_salt"])
+        expected = base64.b64decode(row["password_hash"])
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 100000)
+        if not hmac.compare_digest(dk, expected):
+            return None
+        d = dict(row)
+        if d.get("api_keys"):
+            try:
+                d["api_keys"] = json.loads(d["api_keys"])
+            except Exception:
+                d["api_keys"] = {}
+        else:
+            d["api_keys"] = {}
+        return d
+
+
 def upsert_user(email: str, api_keys: dict, preferred_provider: str | None):
     with get_conn() as conn:
         existing = conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone()
@@ -237,8 +298,8 @@ def upsert_user(email: str, api_keys: dict, preferred_provider: str | None):
             )
         else:
             conn.execute(
-                "INSERT INTO users (email, api_keys, preferred_provider) VALUES (?,?,?)",
-                (email, json.dumps(api_keys), preferred_provider),
+                "INSERT INTO users (email, password_hash, password_salt, api_keys, preferred_provider) VALUES (?,?,?,?,?)",
+                (email, None, None, json.dumps(api_keys), preferred_provider),
             )
 
 

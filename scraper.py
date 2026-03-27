@@ -62,11 +62,11 @@ def fetch_jd_text(url: str) -> str:
     return f"Job description placeholder fetched from {url}"
 
 
-def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -> List[str]:
+def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -> List[Dict[str, str]]:
     boolean_strings = generate_all_strings(filter_config)
     sources = filter_config.get("sources", {}) or {}
 
-    search_urls: List[str] = []
+    search_descriptors: List[Dict[str, str]] = []
 
     # LinkedIn X-ray searches (Google)
     if sources.get("linkedin", True):
@@ -80,18 +80,38 @@ def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -
             minimal_query = "site:linkedin.com/in " + "(" + " OR ".join(title_terms[:4]) + ")"
 
         if broad_query:
-            search_urls.append("https://www.google.com/search?q=" + quote_plus(broad_query))
+            search_descriptors.append(
+                {
+                    "label": "LinkedIn — broad",
+                    "url": "https://www.google.com/search?q=" + quote_plus(broad_query),
+                }
+            )
         elif balanced_query:
-            search_urls.append("https://www.google.com/search?q=" + quote_plus(balanced_query))
+            search_descriptors.append(
+                {
+                    "label": "LinkedIn — balanced",
+                    "url": "https://www.google.com/search?q=" + quote_plus(balanced_query),
+                }
+            )
 
         if minimal_query and minimal_query not in (broad_query, balanced_query):
-            search_urls.append("https://www.google.com/search?q=" + quote_plus(minimal_query))
+            search_descriptors.append(
+                {
+                    "label": "LinkedIn — titles only",
+                    "url": "https://www.google.com/search?q=" + quote_plus(minimal_query),
+                }
+            )
 
     # GitHub profiles via Google X-ray
     if sources.get("github"):
         github_q = boolean_strings.get("github") or ""
         if github_q:
-            search_urls.append("https://www.google.com/search?q=" + quote_plus(github_q))
+            search_descriptors.append(
+                {
+                    "label": "GitHub X‑ray",
+                    "url": "https://www.google.com/search?q=" + quote_plus(github_q),
+                }
+            )
 
     # General Google search without site restriction (for blogs, portfolios, etc.)
     if sources.get("google"):
@@ -104,7 +124,12 @@ def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -
                 + ' "profile" OR "resume" OR "cv"'
                 + ' -"jobs" -job -hiring -careers -vacancy -apply -recruiting'
             )
-            search_urls.append("https://www.google.com/search?q=" + quote_plus(people_q))
+            search_descriptors.append(
+                {
+                    "label": "Google — profiles",
+                    "url": "https://www.google.com/search?q=" + quote_plus(people_q),
+                }
+            )
 
     # Global job board style search via Google X-ray using public, indexable pages only
     if sources.get("naukri"):
@@ -122,6 +147,11 @@ def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -
         parts.append('-"jobs" -job -hiring -careers -vacancy')
         naukri_q = " ".join(parts)
         if naukri_q:
-            search_urls.append("https://www.google.com/search?q=" + quote_plus(naukri_q))
+            search_descriptors.append(
+                {
+                    "label": "Job boards — global",
+                    "url": "https://www.google.com/search?q=" + quote_plus(naukri_q),
+                }
+            )
 
-    return search_urls
+    return search_descriptors
