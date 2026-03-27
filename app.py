@@ -202,10 +202,7 @@ with st.sidebar:
         st.title("Candidate Search")
         st.caption("Zero-API sourcing engine")
     with col_stgl:
-        is_dark = st.session_state.theme == "dark"
-        if st.button("🌙" if is_dark else "🌞", key="theme_btn_sidebar"):
-            st.session_state.theme = "light" if is_dark else "dark"
-            st.rerun()
+        st.markdown("<div style=\"height: 38px;\"></div>", unsafe_allow_html=True)
     st.divider()
 
     if "page" not in st.session_state:
