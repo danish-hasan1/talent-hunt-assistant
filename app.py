@@ -24,39 +24,69 @@ st.set_page_config(
 
 init_db()
 
+if "user_email" not in st.session_state and "user" in st.query_params:
+    st.session_state.user_email = st.query_params["user"]
+
 owner_email = os.environ.get("THA_OWNER_EMAIL", "").strip().lower()
 if owner_email and "user_email" not in st.session_state:
     st.session_state.user_email = owner_email
 
 if not st.session_state.get("user_email"):
-    st.markdown(
-        """
+    st.markdown("""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
+
+        /* Global Theme Override for Streamlit */
+        .stApp {
+            background-color: #0B0F19 !important;
+            color: #F8FAFC !important;
+            font-family: 'Outfit', sans-serif !important;
+        }
         
+        /* Animated Background Orbs */
+        .background-orbs {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            overflow: hidden; z-index: -1; pointer-events: none;
+        }
+        .orb {
+            position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.5;
+            animation: float 20s infinite alternate ease-in-out;
+        }
+        .orb-1 { width: 600px; height: 600px; background: radial-gradient(circle, #38BDF8, transparent 70%); top: -200px; right: -100px; }
+        .orb-2 { width: 500px; height: 500px; background: radial-gradient(circle, #C084FC, transparent 70%); bottom: -100px; left: -200px; animation-delay: -5s; }
+        .orb-3 { width: 400px; height: 400px; background: radial-gradient(circle, #4F46E5, transparent 70%); top: 40%; left: 30%; animation-delay: -10s; opacity: 0.3; }
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(50px, 50px) scale(1.1); }
+        }
+
         .tha-body { 
-            font-family: 'Inter', sans-serif;
+            font-family: 'Outfit', sans-serif;
             padding-top: 2rem; 
             padding-bottom: 4rem; 
-            color: #1e293b;
+            color: #F8FAFC;
         }
         .tha-hero-title { 
             font-size: 3.5rem; 
             font-weight: 800; 
             margin-bottom: 1.5rem; 
             line-height: 1.1;
-            background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+            background: linear-gradient(to right, #38BDF8, #818CF8, #C084FC);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            background-size: 200% auto;
+            animation: textShine 5s linear infinite;
             letter-spacing: -0.02em;
         }
+        @keyframes textShine { to { background-position: 200% center; } }
+        
         .tha-hero-subtitle { 
             font-size: 1.25rem; 
-            color: #475569; 
+            color: #94A3B8; 
             margin-bottom: 2rem; 
             max-width: 680px; 
             line-height: 1.6;
-            font-weight: 400;
+            font-weight: 300;
         }
         .tha-pills-container {
             display: flex;
@@ -69,23 +99,25 @@ if not st.session_state.get("user_email"):
             align-items: center;
             padding: 0.4rem 1rem; 
             border-radius: 9999px; 
-            background: rgba(37, 99, 235, 0.08); 
-            color: #2563eb;
+            background: rgba(255, 255, 255, 0.03); 
+            color: #818CF8;
             font-size: 0.85rem; 
             font-weight: 600;
-            border: 1px solid rgba(37, 99, 235, 0.15);
-            transition: all 0.2s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
         }
         .tha-pill:hover {
-            background: rgba(37, 99, 235, 0.15);
             transform: translateY(-2px);
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.1), 0 2px 4px -2px rgba(37, 99, 235, 0.1);
+            background: rgba(129, 140, 248, 0.15);
+            border-color: rgba(129, 140, 248, 0.3);
         }
         .tha-list-title {
             font-weight: 700;
             font-size: 1.1rem;
             margin-bottom: 1rem;
-            color: #1e293b;
+            color: #F8FAFC;
         }
         .tha-list {
             list-style: none;
@@ -97,7 +129,7 @@ if not st.session_state.get("user_email"):
             position: relative;
             padding-left: 1.75rem;
             margin-bottom: 0.75rem;
-            color: #475569;
+            color: #94A3B8;
             line-height: 1.5;
             font-size: 1.05rem;
         }
@@ -105,23 +137,80 @@ if not st.session_state.get("user_email"):
             content: '✓';
             position: absolute;
             left: 0;
-            color: #10b981;
+            color: #38BDF8;
             font-weight: bold;
         }
         
         /* Streamlit native container override */
         [data-testid="stVerticalBlockBorderWrapper"] {
-            border-radius: 16px !important;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.02) !important;
-            border: 1px solid #e2e8f0 !important;
-            background: #ffffff !important;
-            transition: all 0.3s ease;
+            border-radius: 20px !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            background: rgba(255, 255, 255, 0.03) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            transition: all 0.4s ease;
             overflow: hidden;
         }
         [data-testid="stVerticalBlockBorderWrapper"]:hover {
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.6) !important;
             transform: translateY(-3px);
-            border-color: #cbd5e1 !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+        }
+        
+        /* Native Streamlit Text Inputs */
+        .stTextInput input, .stPasswordInput input {
+            background: rgba(0, 0, 0, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #F8FAFC !important;
+            border-radius: 8px !important;
+            font-family: 'Outfit', sans-serif !important;
+            transition: all 0.3s ease;
+        }
+        .stTextInput input:focus, .stPasswordInput input:focus {
+            border-color: #818CF8 !important;
+            box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2) !important;
+        }
+        
+        /* Native Streamlit Buttons */
+        .stButton button {
+            background: linear-gradient(135deg, #4F46E5, #818CF8) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 9999px !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.39) !important;
+        }
+        .stButton button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.5) !important;
+        }
+        
+        /* Native Streamlit Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: transparent !important;
+            gap: 1rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            color: #94A3B8 !important;
+            font-weight: 600;
+            background: transparent !important;
+            border-bottom-width: 2px !important;
+            padding-bottom: 0.5rem !important;
+            border-bottom-color: transparent !important;
+        }
+        .stTabs [aria-selected="true"] {
+            color: #F8FAFC !important;
+            border-bottom-color: #4F46E5 !important;
+        }
+        
+        /* Typography overrides for internal markdown */
+        .stMarkdown p, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+            color: #F8FAFC !important;
+        }
+        .stMarkdown .stCaptionContainer p {
+            color: #94A3B8 !important;
         }
         
         .tha-feature-icon {
@@ -132,26 +221,24 @@ if not st.session_state.get("user_email"):
             justify-content: center;
             width: 3.5rem;
             height: 3.5rem;
-            background: #f8fafc;
+            background: rgba(192, 132, 252, 0.15);
+            color: #C084FC;
             border-radius: 14px;
-            border: 1px solid #f1f5f9;
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+            border: 1px solid rgba(192, 132, 252, 0.3);
             transition: all 0.3s ease;
         }
         [data-testid="stVerticalBlockBorderWrapper"]:hover .tha-feature-icon {
-            background: #eff6ff;
-            border-color: #dbeafe;
             transform: scale(1.05);
         }
         .tha-section-title { 
             font-size: 1.35rem; 
             font-weight: 700; 
             margin-bottom: 0.75rem; 
-            color: #0f172a;
+            color: #F8FAFC !important;
             letter-spacing: -0.01em;
         }
         .tha-feature-text { 
-            color: #64748b; 
+            color: #94A3B8; 
             font-size: 1.05rem; 
             line-height: 1.6;
         }
@@ -159,7 +246,7 @@ if not st.session_state.get("user_email"):
         hr.tha-divider {
             border: 0;
             height: 1px;
-            background: linear-gradient(to right, transparent, #e2e8f0, transparent);
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
             margin: 4rem 0;
         }
         
@@ -170,84 +257,106 @@ if not st.session_state.get("user_email"):
             padding: 1rem;
             border-radius: 12px;
             transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
         .tha-hiw-step:hover {
-            background: #f8fafc;
+            background: rgba(255, 255, 255, 0.05);
         }
         .tha-hiw-number {
             flex-shrink: 0;
             width: 2.25rem;
             height: 2.25rem;
             border-radius: 50%;
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
+            background: linear-gradient(135deg, #4F46E5 0%, #38BDF8 100%);
+            color: white !important;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 700;
             margin-right: 1.25rem;
             font-size: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+            box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);
         }
         .tha-hiw-content {
             padding-top: 0.2rem;
-            color: #475569;
+            color: #94A3B8;
             line-height: 1.6;
             font-size: 1.1rem;
         }
         .tha-hiw-content strong {
-            color: #0f172a;
+            color: #F8FAFC;
         }
+
+        /* Raw Vite Structural Elements */
+        .badge { display: inline-block; padding: 0.4rem 1rem; border-radius: 9999px; background: rgba(56, 189, 248, 0.1); color: #38BDF8; font-size: 0.85rem; font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.2); margin-bottom: 2rem; }
+        .hero-title { font-size: 4rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; color: #F8FAFC !important; margin-bottom: 1.5rem; }
+        .hero-title br { display: block; }
+        .gradient-text { background: linear-gradient(to right, #38BDF8, #818CF8, #C084FC); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-size: 200% auto; animation: shine 4s linear infinite; }
+        .hero-subtitle { font-size: 1.25rem; color: #94A3B8 !important; font-weight: 300; max-width: 580px; line-height: 1.6; margin-bottom: 3rem; }
         
-        /* Subtle animation for the title gradient */
-        .tha-hero-title {
-            background-size: 200% auto;
-            animation: textShine 5s linear infinite;
-        }
-        @keyframes textShine {
-            to {
-                background-position: 200% center;
-            }
-        }
+        .hero-visual-wrapper { position: relative; display: flex; justify-content: flex-start; align-items: center; margin-top: 2rem; min-height: 350px; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px; padding: 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .preview-card { width: 100%; max-width: 350px; height: 280px; display: flex; flex-direction: column; gap: 1rem; transform: rotate(5deg) scale(1.05); animation: floatCard 6s infinite ease-in-out; margin-left: 2rem; }
+        @keyframes floatCard { 0%, 100% { transform: rotate(5deg) translateY(0); } 50% { transform: rotate(4deg) translateY(-20px); } }
+        .stat-card { position: absolute; top: -10%; left: 0%; padding: 1.5rem; z-index: 2; transform: rotate(-5deg); animation: floatStat 7s infinite ease-in-out; }
+        @keyframes floatStat { 0%, 100% { transform: rotate(-5deg) translateY(0); } 50% { transform: rotate(-3deg) translateY(15px); } }
+        .stat-number { font-size: 2.5rem; font-weight: 800; color: #38BDF8; line-height: 1; }
+        .stat-label { font-size: 0.85rem; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+        .code-line { height: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); }
+        .w-80 { width: 80%; } .w-60 { width: 60%; } .w-40 { width: 40%; } .w-90 { width: 90%; } .w-70 { width: 70%; }
+        .highlight { background: linear-gradient(90deg, #4F46E5, #C084FC); }
+        
+        .features-header { text-align: center; margin-bottom: 4rem; margin-top: 4rem; }
+        .features-header h2 { font-size: 3rem; font-weight: 800; letter-spacing: -0.02em; color: #F8FAFC !important; }
+        .gradient-text-alt { background: linear-gradient(to right, #C084FC, #F472B6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2.5rem; margin-bottom: 4rem; }
+        .feature-card { padding: 3rem 2rem; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); position: relative; overflow: hidden; background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px;}
+        .feature-card:hover { transform: translateY(-8px); border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.05); }
+        .feature-icon.bg-purple { background: rgba(192, 132, 252, 0.15); color: #C084FC; border: 1px solid rgba(192, 132, 252, 0.3); }
+        .feature-icon.bg-blue { background: rgba(56, 189, 248, 0.15); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3); }
+        .feature-icon.bg-emerald { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .feature-card h3 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #F8FAFC !important;}
+        .feature-card p { color: #94A3B8; font-size: 1.05rem; }
+
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
+        """, unsafe_allow_html=True)
 
     with st.container():
-        st.markdown("<div class='tha-body'>", unsafe_allow_html=True)
+        st.markdown("""
+        <div class="background-orbs">
+            <div class="orb orb-1"></div>
+            <div class="orb orb-2"></div>
+            <div class="orb orb-3"></div>
+        </div>
+        <div class='tha-body'>
+        """, unsafe_allow_html=True)
         hero_left, hero_spacer, hero_right = st.columns([1.1, 0.1, 0.9])
         with hero_left:
-            st.markdown("<div class='tha-hero-title'>Talent Hunt Assistant</div>", unsafe_allow_html=True)
-            st.markdown(
-                "<div class='tha-hero-subtitle'>Turn messy job descriptions into structured searches, reusable pipelines, and AI‑scored shortlists without handing everything to a third‑party ATS.</div>",
-                unsafe_allow_html=True,
-            )
-            
-            st.markdown("<div class='tha-list-title'>Built for senior recruiters and sourcing leads who:</div>", unsafe_allow_html=True)
-            st.markdown(
-                """
-                <ul class='tha-list'>
-                    <li>Want JD-driven, repeatable search setups instead of ad‑hoc strings.</li>
-                    <li>Run multi‑region searches and need a single workspace to track them.</li>
-                    <li>Prefer owning their own candidate database rather than renting access.</li>
-                </ul>
-                """,
-                unsafe_allow_html=True
-            )
-            
-            st.markdown("<div class='tha-list-title' style='margin-top:2.5rem;'>Signals you control</div>", unsafe_allow_html=True)
-            st.markdown(
-                """
-                <div class='tha-pills-container'>
-                    <span class='tha-pill'>🎯 JD‑driven filters</span>
-                    <span class='tha-pill'>🌐 Multi‑source X‑ray</span>
-                    <span class='tha-pill'>🤖 AI scoring</span>
-                    <span class='tha-pill'>📊 Per‑job pipeline</span>
+            st.markdown("""
+            <div class="badge">Version 2.0 Live ✨</div>
+            <div class="hero-title">
+                Intelligent <br/>
+                <span class="gradient-text">Talent Sourcing</span>
+            </div>
+            <div class="hero-subtitle">
+                Turn messy job descriptions into structured searches, reusable pipelines, and AI‑scored shortlists without handing everything to a third‑party ATS.
+            </div>
+            <div class="hero-visual-wrapper">
+                <div class="glass-card stat-card">
+                    <div class="stat-number">4x</div>
+                    <div class="stat-label">Faster Sourcing</div>
                 </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                <div class="glass-card preview-card">
+                    <div class="code-line w-80"></div>
+                    <div class="code-line w-60"></div>
+                    <div class="code-line w-40 highlight"></div>
+                    <div class="code-line w-90"></div>
+                    <div class="code-line w-70"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
             
         with hero_right:
             st.markdown("<div style='padding-top: 2rem;'></div>", unsafe_allow_html=True)
@@ -271,6 +380,7 @@ if not st.session_state.get("user_email"):
                                 st.error("Invalid email or password.")
                             else:
                                 st.session_state.user_email = login_email.strip().lower()
+                                st.query_params["user"] = st.session_state.user_email
                                 st.rerun()
 
                 with tab_signup:
@@ -290,6 +400,7 @@ if not st.session_state.get("user_email"):
                                 st.error("An account with this email already exists. Use Log in instead.")
                             else:
                                 st.session_state.user_email = email_norm
+                                st.query_params["user"] = email_norm
                                 st.rerun()
 
                 st.markdown("<div style='text-align:center; margin-top:1.5rem;'><small style='color:#94a3b8; font-weight: 500;'>Your data remains within your environment.</small></div>", unsafe_allow_html=True)
@@ -297,37 +408,28 @@ if not st.session_state.get("user_email"):
 
         st.markdown("<hr class='tha-divider'>", unsafe_allow_html=True)
 
-        feat_col1, feat_col2, feat_col3 = st.columns(3)
-        with feat_col1:
-            with st.container(border=True):
-                st.markdown("<div style='padding: 1rem 0.5rem;'>", unsafe_allow_html=True)
-                st.markdown("<div class='tha-feature-icon'>⚡</div>", unsafe_allow_html=True)
-                st.markdown("<div class='tha-section-title'>Analyse any JD</div>", unsafe_allow_html=True)
-                st.markdown(
-                    "<div class='tha-feature-text'>Break job descriptions into titles, skills, seniority and non‑negotiables with one click, then tweak filters like you would in a world‑class RPS.</div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-        with feat_col2:
-            with st.container(border=True):
-                st.markdown("<div style='padding: 1rem 0.5rem;'>", unsafe_allow_html=True)
-                st.markdown("<div class='tha-feature-icon'>🌍</div>", unsafe_allow_html=True)
-                st.markdown("<div class='tha-section-title'>Source everywhere</div>", unsafe_allow_html=True)
-                st.markdown(
-                    "<div class='tha-feature-text'>Generate X‑ray searches for LinkedIn, GitHub, Google and major regional job boards so you can directly target candidates where they actually are.</div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
-        with feat_col3:
-            with st.container(border=True):
-                st.markdown("<div style='padding: 1rem 0.5rem;'>", unsafe_allow_html=True)
-                st.markdown("<div class='tha-feature-icon'>🏦</div>", unsafe_allow_html=True)
-                st.markdown("<div class='tha-section-title'>Own your DB</div>", unsafe_allow_html=True)
-                st.markdown(
-                    "<div class='tha-feature-text'>Save candidates once, attach them to multiple roles, track stages and match scores, and keep everything inside a unified database you control.</div>",
-                    unsafe_allow_html=True,
-                )
-                st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("""
+        <div class="features-header">
+            <h2>Everything you need, <span class="gradient-text-alt">nothing you don't.</span></h2>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="tha-feature-icon bg-purple">⚡</div>
+                <h3>Analyse any JD</h3>
+                <p>Break job descriptions into titles, skills, seniority and non‑negotiables with one click, then tweak filters like you would in a world‑class RPS.</p>
+            </div>
+            <div class="feature-card">
+                <div class="tha-feature-icon bg-blue">🌍</div>
+                <h3>Source everywhere</h3>
+                <p>Generate X‑ray searches for LinkedIn, GitHub, Google and major regional job boards so you can directly target candidates where they actually are.</p>
+            </div>
+            <div class="feature-card">
+                <div class="tha-feature-icon bg-emerald">🏦</div>
+                <h3>Own your DB</h3>
+                <p>Save candidates once, attach them to multiple roles, track stages and match scores, and keep everything inside a unified database you control.</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown("<hr class='tha-divider'>", unsafe_allow_html=True)
 
@@ -396,6 +498,13 @@ with st.sidebar:
     current_email = st.session_state.get("user_email", "")
     if current_email:
         st.caption(f"Signed in as {current_email}")
+        
+        st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
+        if st.button("Log out", use_container_width=True, type="secondary"):
+            st.session_state.clear()
+            if "user" in st.query_params:
+                del st.query_params["user"]
+            st.rerun()
 
 # ---------------------------------------------------------------------------
 # Page routing
