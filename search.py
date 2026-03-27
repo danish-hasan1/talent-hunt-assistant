@@ -91,6 +91,34 @@ _init_state()
 # Helpers
 # ---------------------------------------------------------------------------
 
+from db import get_user
+user_data = get_user(st.session_state.get("user_email")) if st.session_state.get("user_email") else {}
+user_api_keys = user_data.get("api_keys") or {}
+
+if not user_api_keys:
+    st.markdown("### ⚠️ API Setup Required")
+    st.markdown(
+        """
+        <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 2rem; margin-top: 1rem;">
+            <h4 style="margin-top: 0; color: #F8FAFC;">Welcome to Talent Hunt Assistant!</h4>
+            <p style="color: #94A3B8; font-size: 1.1rem; line-height: 1.6;">
+                Before you can start deeply analyzing Job Descriptions and sourcing candidates automatically, you need to connect the brain. 
+                Follow these 3 quick steps to get started:
+            </p>
+            <ol style="color: #F8FAFC; line-height: 2;">
+                <li><strong>Generate an API Key:</strong> We recommend <a href="https://console.groq.com/keys" target="_blank" style="color: #38BDF8;">Groq</a> (it's currently free and insanely fast).</li>
+                <li><strong>Open Settings:</strong> Click the <strong>Settings</strong> button in the left sidebar menu.</li>
+                <li><strong>Save your Key:</strong> Paste your newly generated key into the corresponding box and click "Save API keys".</li>
+            </ol>
+            <br/>
+            <p style="color: #94A3B8; font-size: 0.95rem;"><em>Once you hit save, simply click back to the Search tab! Your keys are stored locally and privately for your eyes only.</em></p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.stop()
+
+
 def _reset_search():
     """Clear search results when filters change."""
     st.session_state.search_done = False

@@ -410,6 +410,9 @@ elif page == "Settings":
         with col_p2:
             st.markdown(f"**Preferred provider**: {preferred_provider or 'groq'}")
 
+        st.divider()
+        st.caption("⚠️ **Disclaimer:** Talent Hunt Assistant uses AI. Please verify all insights.")
+
         if st.button("Log out"):
             for key in list(st.session_state.keys()):
                 if key.startswith("f_") or key in (
@@ -429,6 +432,11 @@ elif page == "Settings":
 
         st.divider()
         st.subheader("API keys")
+        st.info("💡 **Welcome!** To activate the AI sourcing engine, you must provide an API key. We recommend **Groq** for extreme speed, or **OpenAI** for advanced reasoning.\n\n"
+              "- [Get a FREE Groq API Key](https://console.groq.com/keys)\n"
+              "- [Get an OpenAI API Key](https://platform.openai.com/api-keys)\n"
+              "- [Get an Anthropic API Key](https://console.anthropic.com/settings/keys)\n\n"
+              "Your keys are stored securely in your private local database.")
 
         provider = st.selectbox(
             "Preferred provider",
