@@ -626,14 +626,15 @@ if search_clicked and not missing_fields:
     results = search_candidates_in_db(db_query, db_filters)
 
     sources = fc.get("sources", {})
+    search_links = []
     if any(sources.get(k) for k in ("linkedin", "github", "naukri", "google")):
-        run_scrapers_for_job(st.session_state.job_id, fc)
+        search_links = run_scrapers_for_job(st.session_state.job_id, fc)
 
     st.session_state.results = results
+    st.session_state.search_links = search_links
     if not results:
         st.info(
-            "Search triggered. Multiple Google tabs with progressively broader LinkedIn X-ray queries "
-            "have been opened so you can explore wider talent pools when the strict query has no results. "
+            "Search triggered. Use the search links below and the boolean strings to explore candidates in your browser. "
             "Existing DB was also searched but no matches were found yet."
         )
 
@@ -732,6 +733,11 @@ if st.session_state.search_done:
             st.code(boolean_strings["linkedin_balanced"], language="text")
             st.code(boolean_strings["linkedin_broad"],    language="text")
             st.code(boolean_strings["linkedin_narrow"],   language="text")
+            links = st.session_state.get("search_links") or []
+            if links:
+                st.markdown("**Search links**")
+                for i, url in enumerate(links, start=1):
+                    st.markdown(f"- [{url}]({url})")
         else:
             st.info("Fill in filters above to generate boolean strings.")
 

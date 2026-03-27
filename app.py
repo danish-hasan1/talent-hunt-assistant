@@ -148,19 +148,9 @@ with st.sidebar:
 
     st.divider()
 
-    st.subheader("Account")
     current_email = st.session_state.get("user_email", "")
-    email_input = st.text_input("Email", value=current_email)
-    if st.button("Set account"):
-        st.session_state.user_email = email_input.strip().lower()
-
-    user = None
-    if st.session_state.get("user_email"):
-        user = get_user(st.session_state["user_email"])
-    if user and (user.get("api_keys") or {}).get("groq"):
-        st.success("Groq key configured")
-    else:
-        st.info("Set your Groq API key in Settings to run analysis.")
+    if current_email:
+        st.caption(f"Signed in as {current_email}")
 
 # ---------------------------------------------------------------------------
 # Page routing
@@ -321,14 +311,23 @@ elif page == "Candidate DB":
 elif page == "Settings":
     st.title("Settings")
 
-    st.subheader("API keys")
+    st.subheader("Profile")
     user_email = st.session_state.get("user_email", "")
     if not user_email:
-        st.info("Set your account email in the sidebar to manage API keys.")
+        st.info("You are not signed in. Refresh to go back to the landing page and enter your email.")
     else:
         user = get_user(user_email) or {"api_keys": {}, "preferred_provider": "groq"}
         api_keys = user.get("api_keys") or {}
         preferred_provider = user.get("preferred_provider") or "groq"
+
+        col_p1, col_p2 = st.columns([2, 2])
+        with col_p1:
+            st.markdown(f"**Email**: {user_email}")
+        with col_p2:
+            st.markdown(f"**Preferred provider**: {preferred_provider or 'groq'}")
+
+        st.divider()
+        st.subheader("API keys")
 
         provider = st.selectbox(
             "Preferred provider",

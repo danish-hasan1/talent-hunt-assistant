@@ -1,6 +1,5 @@
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote_plus
-import webbrowser
 
 from db import upsert_candidate, link_candidate_to_job, get_job_candidates
 from boolean_builder import generate_all_strings
@@ -63,7 +62,7 @@ def fetch_jd_text(url: str) -> str:
     return f"Job description placeholder fetched from {url}"
 
 
-def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -> List[str]:
     boolean_strings = generate_all_strings(filter_config)
     sources = filter_config.get("sources", {}) or {}
 
@@ -125,10 +124,4 @@ def run_scrapers_for_job(job_id: Optional[int], filter_config: Dict[str, Any]) -
         if naukri_q:
             search_urls.append("https://www.google.com/search?q=" + quote_plus(naukri_q))
 
-    for url in search_urls:
-        try:
-            webbrowser.open_new_tab(url)
-        except Exception:
-            continue
-
-    return []
+    return search_urls
