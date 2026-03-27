@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS candidates (
     source          TEXT,   -- linkedin | github | naukri | google
     source_url      TEXT,
     raw_profile     TEXT,   -- full scraped HTML/text
+    linkedin_pdf_path TEXT,
     last_verified   TEXT,
     created_at      TEXT    DEFAULT (datetime('now'))
 );
@@ -101,6 +102,14 @@ CREATE INDEX IF NOT EXISTS idx_jc_job      ON job_candidates(job_id);
 CREATE INDEX IF NOT EXISTS idx_jc_cand     ON job_candidates(candidate_id);
 CREATE INDEX IF NOT EXISTS idx_cand_li     ON candidates(linkedin_url);
 CREATE INDEX IF NOT EXISTS idx_outreach_jc ON outreach(job_id, candidate_id);
+
+CREATE TABLE IF NOT EXISTS users (
+    email            TEXT PRIMARY KEY,
+    api_keys         TEXT,
+    preferred_provider TEXT,
+    created_at       TEXT DEFAULT (datetime('now')),
+    updated_at       TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -108,6 +117,10 @@ def init_db():
     """Create all tables if they don't exist. Safe to call on every startup."""
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        try:
+            conn.execute("ALTER TABLE candidates ADD COLUMN linkedin_pdf_path TEXT")
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +175,24 @@ def get_job(job_id: int) -> dict | None:
 def list_jobs() -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT id, title, status, created_at FROM jobs ORDER BY created_at DESC"
+            "SELECT id, title, status, created_at, jd_text FROM jobs ORDER BY created_at DESC"
         ).fetchall()
-        return [dict(r) for r in rows]
+        seen = set()
+        result: list[dict] = []
+        for r in rows:
+            key = (r["jd_text"] or "").strip()
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(
+                {
+                    "id": r["id"],
+                    "title": r["title"],
+                    "status": r["status"],
+                    "created_at": r["created_at"],
+                }
+            )
+        return result
 
 
 def update_job_status(job_id: int, status: str):
@@ -173,6 +201,45 @@ def update_job_status(job_id: int, status: str):
             "UPDATE jobs SET status=?, updated_at=datetime('now') WHERE id=?",
             (status, job_id)
         )
+
+
+def update_job_title(job_id: int, title: str):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE jobs SET title=?, updated_at=datetime('now') WHERE id=?",
+            (title, job_id)
+        )
+
+
+def get_user(email: str) -> dict | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        if d.get("api_keys"):
+            try:
+                d["api_keys"] = json.loads(d["api_keys"])
+            except Exception:
+                d["api_keys"] = {}
+        else:
+            d["api_keys"] = {}
+        return d
+
+
+def upsert_user(email: str, api_keys: dict, preferred_provider: str | None):
+    with get_conn() as conn:
+        existing = conn.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE users SET api_keys=?, preferred_provider=?, updated_at=datetime('now') WHERE email=?",
+                (json.dumps(api_keys), preferred_provider, email),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO users (email, api_keys, preferred_provider) VALUES (?,?,?)",
+                (email, json.dumps(api_keys), preferred_provider),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +259,8 @@ def upsert_candidate(data: dict) -> int:
                 """INSERT INTO candidates
                    (full_name, current_title, current_company, location,
                     email, phone, linkedin_url, github_url, profile_summary,
-                    skills, experience_years, source, source_url, raw_profile, last_verified)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    skills, experience_years, source, source_url, raw_profile, linkedin_pdf_path, last_verified)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                    ON CONFLICT(linkedin_url) DO UPDATE SET
                      full_name=excluded.full_name,
                      current_title=excluded.current_title,
@@ -210,6 +277,7 @@ def upsert_candidate(data: dict) -> int:
                     data.get("profile_summary"), skills,
                     data.get("experience_years"), data.get("source"),
                     data.get("source_url"), data.get("raw_profile"),
+                    data.get("linkedin_pdf_path"),
                 )
             )
             row = conn.execute(
@@ -222,8 +290,8 @@ def upsert_candidate(data: dict) -> int:
                 """INSERT INTO candidates
                    (full_name, current_title, current_company, location,
                     email, phone, github_url, profile_summary,
-                    skills, experience_years, source, source_url, raw_profile, last_verified)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))""",
+                    skills, experience_years, source, source_url, raw_profile, linkedin_pdf_path, last_verified)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))""",
                 (
                     data.get("full_name"), data.get("current_title"),
                     data.get("current_company"), data.get("location"),
@@ -231,6 +299,7 @@ def upsert_candidate(data: dict) -> int:
                     data.get("github_url"), data.get("profile_summary"),
                     skills, data.get("experience_years"),
                     data.get("source"), data.get("source_url"), data.get("raw_profile"),
+                    data.get("linkedin_pdf_path"),
                 )
             )
             return cur.lastrowid

@@ -1,16 +1,8 @@
 import json
 from typing import Any, Dict, Tuple
 
-from groq import Groq
-
-from config import GROQ_API_KEY, GROQ_MODEL, GROQ_TEMP, GROQ_MAX_TOKENS
-from jd_analysis import _parse_json
-
-
-def _get_client() -> Groq:
-    if not GROQ_API_KEY:
-        raise ValueError("GROQ_API_KEY is not set.")
-    return Groq(api_key=GROQ_API_KEY)
+from config import GROQ_MODEL, GROQ_TEMP, GROQ_MAX_TOKENS
+from jd_analysis import _parse_json, _get_client
 
 
 def score_candidate_for_job(filter_config: Dict[str, Any], candidate: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
@@ -77,4 +69,3 @@ def score_candidate_for_job(filter_config: Dict[str, Any], candidate: Dict[str, 
         score = 100.0
     breakdown = parsed.get("score_breakdown") or {}
     return score, breakdown
-

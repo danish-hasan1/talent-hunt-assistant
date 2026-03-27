@@ -10,7 +10,7 @@ Both modes validate required fields before allowing search to fire.
 """
 
 import streamlit as st
-import sys, os
+import sys, os, json
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from jd_analysis     import run_chain, validate_jd
@@ -30,6 +30,10 @@ from db              import (
 )
 from scraper         import run_scrapers_for_job
 from scorer          import score_candidate_for_job
+
+
+def _job_code(job_id: int) -> str:
+    return f"THA-{job_id:04d}"
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -69,12 +73,43 @@ def _init_state():
             "google":   True,
             "db_only":  False,
         },
+        "f_work_type":        "",
+        "f_notice_period":    "",
+        "f_company_size":     "",
+        "f_language":         "",
+        "f_relocation_ok":    False,
+        "f_visa_sponsorship": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
 _init_state()
+
+job_to_load = st.session_state.pop("job_to_load", None)
+if job_to_load:
+    job = get_job(job_to_load)
+    if job:
+        st.session_state.jd_text = job.get("jd_text", "")
+        fc_loaded = job.get("filter_config") or {}
+        st.session_state.filter_config = fc_loaded
+        try:
+            from jd_analysis import _parse_json as _parse_json_for_load
+            if job.get("p1_analysis"):
+                st.session_state.p1_out = _parse_json_for_load(job["p1_analysis"])
+            if job.get("p2_matrix"):
+                st.session_state.p2_out = _parse_json_for_load(job["p2_matrix"])
+            if job.get("p3_params"):
+                st.session_state.p3_out = _parse_json_for_load(job["p3_params"])
+        except Exception:
+            st.session_state.p1_out = {}
+            st.session_state.p2_out = {}
+            st.session_state.p3_out = {}
+        st.session_state.job_id = job_to_load
+        st.session_state.chain_done = True
+        st.session_state.chain_error = None
+        _populate_filters_from_chain()
+        _reset_search()
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +133,18 @@ def _populate_filters_from_chain():
     st.session_state.f_location    = fc.get("location", "")
     st.session_state.f_industry    = fc.get("industry", "")
     st.session_state.f_exclude     = fc.get("exclude", [])
+    st.session_state.f_work_type   = fc.get("work_type", "")
+    st.session_state.f_notice_period = fc.get("notice_period", "")
+    st.session_state.f_company_size  = fc.get("company_size", "")
+    st.session_state.f_language      = fc.get("language", "")
+    st.session_state.f_relocation_ok = fc.get("relocation_ok", False)
+    st.session_state.f_visa_sponsorship = fc.get("visa_sponsorship", False)
 
 
 def _current_filter_config() -> dict:
     """Build a filter config dict from current session state fields."""
+    existing_fc = st.session_state.get("filter_config") or {}
+    search_label = existing_fc.get("search_label", "")
     titles = [t.strip() for t in st.session_state.f_titles.split(",") if t.strip()]
     return {
         "titles":      titles,
@@ -113,6 +156,13 @@ def _current_filter_config() -> dict:
         "industry":    st.session_state.f_industry,
         "exclude":     st.session_state.f_exclude,
         "sources":     st.session_state.f_sources,
+        "work_type":   st.session_state.f_work_type,
+        "notice_period": st.session_state.f_notice_period,
+        "company_size":  st.session_state.f_company_size,
+        "language":      st.session_state.f_language,
+        "relocation_ok": st.session_state.f_relocation_ok,
+        "visa_sponsorship": st.session_state.f_visa_sponsorship,
+        "search_label": search_label,
     }
 
 
@@ -146,9 +196,34 @@ st.divider()
 
 if st.session_state.mode == "jd":
 
-    # -----------------------------------------------------------------------
-    # Step 1 — JD input
-    # -----------------------------------------------------------------------
+    with st.expander("Load existing search", expanded=False):
+        jobs = list_jobs()
+        if jobs:
+            options = [f"{_job_code(j['id'])} · {j['title']}" for j in jobs]
+            selected = st.selectbox("Saved searches", options, index=0)
+            if st.button("Load search"):
+                job = next(j for j in jobs if f"{_job_code(j['id'])} · {j['title']}" == selected)
+                detail = get_job(job["id"])
+                st.session_state.jd_text = detail.get("jd_text", "")
+                st.session_state.filter_config = detail.get("filter_config") or {}
+                try:
+                    if detail.get("p1_analysis"):
+                        st.session_state.p1_out = json.loads(detail["p1_analysis"])
+                    if detail.get("p2_matrix"):
+                        st.session_state.p2_out = json.loads(detail["p2_matrix"])
+                    if detail.get("p3_params"):
+                        st.session_state.p3_out = json.loads(detail["p3_params"])
+                except Exception:
+                    st.session_state.p1_out = {}
+                    st.session_state.p2_out = {}
+                    st.session_state.p3_out = {}
+                st.session_state.job_id = job["id"]
+                st.session_state.chain_done = True
+                st.session_state.chain_error = None
+                _populate_filters_from_chain()
+                _reset_search()
+                st.rerun()
+
     with st.expander("Step 1 — Job description", expanded=not st.session_state.chain_done):
 
         jd_tab1, jd_tab2 = st.tabs(["Paste JD", "Fetch from URL"])
@@ -237,9 +312,11 @@ if st.session_state.mode == "jd":
                 _populate_filters_from_chain()
 
                 # Save to DB
-                job_title = (result["p1"].get("role_objective") or
-                             result["filter_config"].get("titles", ["New job"])[0] or
-                             "New job")
+                titles_for_job = result["filter_config"].get("titles") or []
+                if titles_for_job:
+                    job_title = titles_for_job[0]
+                else:
+                    job_title = "New job"
                 job_id = create_job(
                     title=job_title,
                     jd_text=st.session_state.jd_text,
@@ -257,11 +334,52 @@ if st.session_state.mode == "jd":
 
         if st.session_state.chain_done:
             with st.expander("Role understanding"):
-                st.json(st.session_state.p1_out)
+                p1 = st.session_state.p1_out or {}
+                role_obj = p1.get("role_objective") or ""
+                seniority = p1.get("seniority_level") or ""
+                ownership = p1.get("ownership_level") or ""
+                ideal = p1.get("ideal_candidate_brief") or ""
+                if role_obj:
+                    st.markdown(f"**Role objective**: {role_obj}")
+                if seniority or ownership:
+                    st.markdown(f"**Seniority**: {seniority or '—'} &nbsp;&nbsp; **Ownership**: {ownership or '—'}")
+                prim = p1.get("primary_competencies") or []
+                if prim:
+                    st.markdown("**Primary competencies**")
+                    for c in prim:
+                        name = c.get("name") or ""
+                        why = c.get("why_essential") or ""
+                        st.markdown(f"- **{name}** — {why}")
+                sec = p1.get("secondary_competencies") or []
+                if sec:
+                    st.markdown("**Secondary competencies**")
+                    st.markdown(", ".join(sec))
+                disq = p1.get("disqualifiers") or []
+                if disq:
+                    st.markdown("**Disqualifiers**")
+                    for d in disq:
+                        st.markdown(f"- {d}")
+                if ideal:
+                    st.markdown("**Ideal candidate**")
+                    st.markdown(ideal)
+
             with st.expander("Skills and competency model"):
-                st.json(st.session_state.p2_out)
-            with st.expander("Sourcing strategy and parameters"):
-                st.json(st.session_state.p3_out)
+                p2 = st.session_state.p2_out or {}
+                matrix = p2.get("skills_matrix") or []
+                if matrix:
+                    sorted_matrix = sorted(matrix, key=lambda x: x.get("weight", 0), reverse=True)
+                    top = sorted_matrix[:8]
+                    st.markdown("**Key skills and weights**")
+                    for item in top:
+                        skill = item.get("skill") or ""
+                        cat = item.get("category") or ""
+                        wt = item.get("weight") or 0
+                        st.markdown(f"- **{skill}** ({cat}, {wt} pts)")
+                non_neg = p2.get("non_negotiables") or []
+                if non_neg:
+                    st.markdown("**Non‑negotiables**")
+                    for n in non_neg:
+                        st.markdown(f"- {n}")
 
 
 # ===========================================================================
@@ -305,42 +423,45 @@ st.session_state.f_location = st.text_input(
 col3, col4 = st.columns(2)
 
 with col3:
-    # Must-have skills as editable multiselect
     current_must = st.session_state.f_must_skills or []
-    new_must = st.multiselect(
-        "Must-have skills",
-        options=current_must,
-        default=current_must,
-    )
-    # Allow free-text addition
-    new_must_skill = st.text_input("Add must-have skill", key="add_must",
-                                    placeholder="Type skill and press Enter")
-    if new_must_skill and new_must_skill not in st.session_state.f_must_skills:
-        st.session_state.f_must_skills.append(new_must_skill)
+    new_must_skill = st.text_input("Must-have skills (comma-separated)",
+                                   value=", ".join(current_must),
+                                   placeholder="Braking systems, vehicle dynamics, test planning")
+    skills_list = [s.strip() for s in new_must_skill.split(",") if s.strip()]
+    if skills_list != current_must:
+        st.session_state.f_must_skills = skills_list
         _reset_search()
-        st.rerun()
-    st.session_state.f_must_skills = new_must
 
 with col4:
     current_nice = st.session_state.f_nice_skills or []
-    new_nice = st.multiselect(
-        "Nice-to-have skills",
-        options=current_nice,
-        default=current_nice,
-    )
-    new_nice_skill = st.text_input("Add nice-to-have skill", key="add_nice",
-                                    placeholder="Type skill and press Enter")
-    if new_nice_skill and new_nice_skill not in st.session_state.f_nice_skills:
-        st.session_state.f_nice_skills.append(new_nice_skill)
+    new_nice_skill = st.text_input("Nice-to-have skills (comma-separated)",
+                                   value=", ".join(current_nice),
+                                   placeholder="Data analysis, English proficiency")
+    skills_list_nice = [s.strip() for s in new_nice_skill.split(",") if s.strip()]
+    if skills_list_nice != current_nice:
+        st.session_state.f_nice_skills = skills_list_nice
         _reset_search()
-        st.rerun()
-    st.session_state.f_nice_skills = new_nice
 
 # ---- Optional fields ------------------------------------------------------
 col5, col6 = st.columns(2)
 
 with col5:
-    seniority_options = ["", "Junior", "Mid-level", "Senior", "Lead", "Head / Principal"]
+    seniority_options = [
+        "",
+        "Intern / Trainee",
+        "Junior (0–2)",
+        "Mid-level (2–5)",
+        "Senior (5–10)",
+        "Lead / Principal",
+        "Manager",
+        "Senior Manager",
+        "Director",
+        "Senior Director",
+        "VP",
+        "SVP / EVP",
+        "C-Suite / Partner",
+        "Head / Global Head",
+    ]
     cur_sen = st.session_state.f_seniority
     sen_idx = seniority_options.index(cur_sen) if cur_sen in seniority_options else 0
     st.session_state.f_seniority = st.selectbox(
@@ -353,6 +474,63 @@ with col6:
         value=st.session_state.f_industry,
         placeholder="e.g. RPO, MSP, In-house TA",
         on_change=_reset_search,
+    )
+
+col7, col8 = st.columns(2)
+
+with col7:
+    work_types = ["", "Remote", "Hybrid", "On-site"]
+    cur_work = st.session_state.f_work_type
+    work_idx = work_types.index(cur_work) if cur_work in work_types else 0
+    st.session_state.f_work_type = st.selectbox(
+        "Work type", work_types, index=work_idx, on_change=_reset_search
+    )
+
+with col8:
+    notice_options = ["", "Immediate", "15 days", "30 days", "45 days", "60 days", "90 days"]
+    cur_notice = st.session_state.f_notice_period
+    notice_idx = notice_options.index(cur_notice) if cur_notice in notice_options else 0
+    st.session_state.f_notice_period = st.selectbox(
+        "Notice period", notice_options, index=notice_idx, on_change=_reset_search
+    )
+
+col9, col10 = st.columns(2)
+
+with col9:
+    size_options = [
+        "",
+        "Startup (1–50)",
+        "Scale-up (51–200)",
+        "Mid-size (201–1000)",
+        "Large (1001–5000)",
+        "Enterprise (5000+)",
+    ]
+    cur_size = st.session_state.f_company_size
+    size_idx = size_options.index(cur_size) if cur_size in size_options else 0
+    st.session_state.f_company_size = st.selectbox(
+        "Target company size", size_options, index=size_idx, on_change=_reset_search
+    )
+
+with col10:
+    st.session_state.f_language = st.text_input(
+        "Language requirement",
+        value=st.session_state.f_language,
+        placeholder="e.g. French, German",
+        on_change=_reset_search,
+    )
+
+col11, col12 = st.columns(2)
+
+with col11:
+    st.session_state.f_relocation_ok = st.checkbox(
+        "Open to relocation required",
+        value=st.session_state.f_relocation_ok,
+    )
+
+with col12:
+    st.session_state.f_visa_sponsorship = st.checkbox(
+        "Visa sponsorship required",
+        value=st.session_state.f_visa_sponsorship,
     )
 
 # ---- Exclusions -----------------------------------------------------------

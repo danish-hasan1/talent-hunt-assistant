@@ -21,18 +21,30 @@ import json
 import re
 from groq import Groq
 from config import GROQ_API_KEY, GROQ_MODEL, GROQ_TEMP, GROQ_MAX_TOKENS
+from db import get_user
+import streamlit as st
 
 # ---------------------------------------------------------------------------
 # Groq client
 # ---------------------------------------------------------------------------
 
 def _get_client() -> Groq:
-    if not GROQ_API_KEY:
+    key = GROQ_API_KEY
+    try:
+        email = st.session_state.get("user_email")
+    except Exception:
+        email = None
+    if email:
+        user = get_user(email)
+        if user:
+            api_keys = user.get("api_keys") or {}
+            if api_keys.get("groq"):
+                key = api_keys["groq"]
+    if not key:
         raise ValueError(
-            "GROQ_API_KEY is not set. "
-            "Run: export GROQ_API_KEY='gsk_...' before starting the app."
+            "No Groq API key configured. Set it in Settings for your account or via GROQ_API_KEY env."
         )
-    return Groq(api_key=GROQ_API_KEY)
+    return Groq(api_key=key)
 
 
 # ---------------------------------------------------------------------------
