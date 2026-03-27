@@ -48,21 +48,20 @@ def build_boolean(
         if quoted:
             parts.append(f"({' OR '.join(quoted)})")
 
-    # ---- Must-have skills -------------------------------------------------
     if must_skills:
         if mode == "broad":
-            # Just first 2 must-have skills
-            skill_list = must_skills[:2]
+            skill_list = must_skills[:3]
         elif mode == "narrow":
-            # All must-have skills
             skill_list = must_skills
         else:
-            # Balanced: first 3
             skill_list = must_skills[:3]
 
         quoted = [f'"{s.strip()}"' for s in skill_list if s.strip()]
         if quoted:
-            parts.append(" AND ".join(quoted))
+            if mode == "broad":
+                parts.append(f"({' OR '.join(quoted)})")
+            else:
+                parts.append(" AND ".join(quoted))
 
     # ---- Nice-to-have (narrow only adds some, broad skips entirely) ------
     if nice_skills and mode == "narrow":

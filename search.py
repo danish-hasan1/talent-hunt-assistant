@@ -13,10 +13,23 @@ import streamlit as st
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from jd_analysis   import run_chain, validate_jd
+from jd_analysis     import run_chain, validate_jd
 from boolean_builder import generate_all_strings, validate_filters
-from db            import (init_db, create_job, update_job_chain_outputs,
-                           update_job_filters, get_job_candidates, list_jobs)
+from db              import (
+    init_db,
+    create_job,
+    update_job_chain_outputs,
+    update_job_filters,
+    get_job,
+    get_job_candidates,
+    list_jobs,
+    upsert_candidate,
+    link_candidate_to_job,
+    update_candidate_stage,
+    search_candidates_in_db,
+)
+from scraper         import run_scrapers_for_job
+from scorer          import score_candidate_for_job
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -170,9 +183,6 @@ if st.session_state.mode == "jd":
             for w in warnings:
                 st.warning(w)
 
-    # -----------------------------------------------------------------------
-    # Step 2 — Run the 3-prompt chain
-    # -----------------------------------------------------------------------
     with st.expander("Step 2 — Analyse with AI",
                      expanded=bool(st.session_state.jd_text) and not st.session_state.chain_done):
 
@@ -188,7 +198,7 @@ if st.session_state.mode == "jd":
         if not can_run:
             st.info("Paste a job description above to enable analysis.")
 
-        if st.button("Run analysis chain (3 prompts)",
+        if st.button("Run analysis",
                      disabled=not can_run,
                      type="primary"):
 
@@ -200,9 +210,9 @@ if st.session_state.mode == "jd":
             status_text   = st.empty()
 
             step_labels = {
-                1: "Prompt 1 — JD dissection & intent extraction...",
-                2: "Prompt 2 — Weighted skill & competency matrix...",
-                3: "Prompt 3 — Sourcing parameters & boolean builder...",
+                1: "Understanding the role and intent...",
+                2: "Building the skills and competency model...",
+                3: "Deriving sourcing parameters and search strategy...",
             }
 
             def on_step(step: int, label: str):
@@ -242,16 +252,15 @@ if st.session_state.mode == "jd":
                 )
                 st.session_state.job_id = job_id
                 progress_bar.progress(1.0)
-                status_text.write("✓ All 3 prompts complete")
+                status_text.write("✓ Analysis complete")
                 st.rerun()
 
-        # Show raw outputs in expanders for transparency
         if st.session_state.chain_done:
-            with st.expander("View Prompt 1 output — role analysis"):
+            with st.expander("Role understanding"):
                 st.json(st.session_state.p1_out)
-            with st.expander("View Prompt 2 output — skills matrix"):
+            with st.expander("Skills and competency model"):
                 st.json(st.session_state.p2_out)
-            with st.expander("View Prompt 3 output — sourcing params"):
+            with st.expander("Sourcing strategy and parameters"):
                 st.json(st.session_state.p3_out)
 
 
@@ -417,7 +426,6 @@ search_clicked = st.button(
 )
 
 if search_clicked and not missing_fields:
-    # Save filter config to DB if we have a job_id
     if st.session_state.job_id:
         boolean_strings = generate_all_strings(fc)
         update_job_filters(
@@ -427,9 +435,29 @@ if search_clicked and not missing_fields:
         )
 
     st.session_state.search_done = True
-    # TODO: trigger actual scraper here and populate st.session_state.results
-    st.info("Search triggered — scrapers will populate results here. "
-            "Wire in your Playwright scrapers to this point.")
+    db_query = ", ".join(fc.get("titles", [])[:2])
+    db_filters = {}
+    if fc.get("location"):
+        db_filters["location"] = fc["location"]
+    if fc.get("exp_range"):
+        import re
+        m = re.search(r"(\d+)", fc["exp_range"])
+        if m:
+            db_filters["min_exp"] = int(m.group(1))
+
+    results = search_candidates_in_db(db_query, db_filters)
+
+    sources = fc.get("sources", {})
+    if any(sources.get(k) for k in ("linkedin", "github", "naukri", "google")):
+        run_scrapers_for_job(st.session_state.job_id, fc)
+
+    st.session_state.results = results
+    if not results:
+        st.info(
+            "Search triggered. Multiple Google tabs with progressively broader LinkedIn X-ray queries "
+            "have been opened so you can explore wider talent pools when the strict query has no results. "
+            "Existing DB was also searched but no matches were found yet."
+        )
 
 
 # ===========================================================================
@@ -444,9 +472,54 @@ if st.session_state.search_done:
     )
 
     with tab_ranked:
+        if st.session_state.job_id:
+            with st.expander("Add candidate from LinkedIn URL"):
+                with st.form("add_candidate_form"):
+                    li_url = st.text_input("LinkedIn profile URL", placeholder="https://www.linkedin.com/in/...")
+                    name = st.text_input("Full name")
+                    title = st.text_input("Current title")
+                    company = st.text_input("Current company")
+                    location_val = st.text_input("Location", value=st.session_state.f_location)
+                    skills_text = st.text_input("Skills (comma-separated)")
+                    submitted = st.form_submit_button("Save to pipeline")
+                if submitted and li_url:
+                    skills_list = [s.strip() for s in skills_text.split(",") if s.strip()]
+                    data = {
+                        "full_name": name or None,
+                        "current_title": title or None,
+                        "current_company": company or None,
+                        "location": location_val or None,
+                        "email": None,
+                        "phone": None,
+                        "linkedin_url": li_url,
+                        "github_url": None,
+                        "profile_summary": "",
+                        "skills": skills_list,
+                        "experience_years": None,
+                        "source": "manual_linkedin",
+                        "source_url": li_url,
+                        "raw_profile": "",
+                    }
+                    candidate_id = upsert_candidate(data)
+                    job = get_job(st.session_state.job_id)
+                    filter_config_for_score = (job or {}).get("filter_config") or fc
+                    score, breakdown = score_candidate_for_job(filter_config_for_score, data)
+                    link_candidate_to_job(
+                        st.session_state.job_id,
+                        candidate_id,
+                        match_score=score,
+                        score_breakdown=breakdown,
+                    )
+                    st.session_state.results = get_job_candidates(st.session_state.job_id)
+                    st.success("Candidate added to pipeline for this job with AI match score.")
+                    st.rerun()
+
         results = st.session_state.results
         if not results:
-            st.info("No results yet — scraper results will appear here once sourcing completes.")
+            st.info(
+                "No in-app results yet. Use the Boolean / raw results tab and the opened browser searches "
+                "to iteratively relax titles, skills, or locations until you see viable candidates."
+            )
         else:
             for c in results:
                 with st.container(border=True):
@@ -467,6 +540,12 @@ if st.session_state.search_done:
                             ["found", "shortlisted", "contacted", "responded", "rejected"],
                             key=f"stage_{c.get('id')}",
                         )
+                        if st.session_state.job_id and c.get("id"):
+                            update_candidate_stage(
+                                st.session_state.job_id,
+                                c["id"],
+                                stage,
+                            )
 
     with tab_bool:
         if fc.get("titles") or fc.get("must_skills"):

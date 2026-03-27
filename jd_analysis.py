@@ -173,17 +173,19 @@ def _parse_json(raw: str) -> dict:
     Robustly extract and parse JSON from a model response.
     Handles cases where the model wraps JSON in markdown code fences.
     """
-    # Strip markdown fences if present
     cleaned = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
     cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE)
     cleaned = cleaned.strip()
 
-    # Find the outermost JSON object
     match = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if match:
         cleaned = match.group(0)
 
-    return json.loads(cleaned)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        fixed = re.sub(r"\\(?![\"\\/bfnrtu])", r"\\\\", cleaned)
+        return json.loads(fixed)
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +272,6 @@ def run_chain(jd_text: str,
         result["error"] = str(e)
         return result
 
-    # ---- Prompt 1: JD dissection ----------------------------------------
     try:
         p1_raw = _call_groq(client, PROMPT_1_SYSTEM,
                             f"Analyze this job description:\n\n{jd_text}")
@@ -278,12 +279,11 @@ def run_chain(jd_text: str,
         result["p1"] = p1
         result["p1_raw"] = p1_raw
         if on_step:
-            on_step(1, "JD dissection complete")
+            on_step(1, "Role understanding complete")
     except Exception as e:
-        result["error"] = f"Prompt 1 failed: {e}"
+        result["error"] = f"Role understanding step failed: {e}"
         return result
 
-    # ---- Prompt 2: Skills matrix ----------------------------------------
     try:
         p2_input = (
             f"Job description:\n{jd_text}\n\n"
@@ -294,12 +294,11 @@ def run_chain(jd_text: str,
         result["p2"] = p2
         result["p2_raw"] = p2_raw
         if on_step:
-            on_step(2, "Skills matrix complete")
+            on_step(2, "Skills and competency model complete")
     except Exception as e:
-        result["error"] = f"Prompt 2 failed: {e}"
+        result["error"] = f"Skills and competency step failed: {e}"
         return result
 
-    # ---- Prompt 3: Sourcing params + boolean ----------------------------
     try:
         p3_input = (
             f"Job description:\n{jd_text}\n\n"
@@ -311,9 +310,9 @@ def run_chain(jd_text: str,
         result["p3"] = p3
         result["p3_raw"] = p3_raw
         if on_step:
-            on_step(3, "Sourcing parameters complete")
+            on_step(3, "Sourcing strategy complete")
     except Exception as e:
-        result["error"] = f"Prompt 3 failed: {e}"
+        result["error"] = f"Sourcing strategy step failed: {e}"
         return result
 
     # ---- Build unified filter config ------------------------------------
