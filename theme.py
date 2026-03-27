@@ -376,7 +376,10 @@ def get_theme_css(theme: str) -> str:
 
 
         /* Text Legibility Overrides */
-        .stMarkdown p, label { color: #E2E8F0 !important; }
+        .stMarkdown p, label, .stWidgetLabel, .stWidgetLabel p, .stWidgetLabel span, 
+        .stCheckbox span, [data-testid="stMarkdownContainer"] p, [data-testid="stText"] { 
+            color: #F8FAFC !important; 
+        }
 
     </style>"""
     
