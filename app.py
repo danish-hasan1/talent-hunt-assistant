@@ -85,7 +85,7 @@ if not st.session_state.get("user_email"):
             st.markdown("<div style='padding-top: 2rem;'></div>", unsafe_allow_html=True)
             with st.container(border=True):
                 st.markdown("<div style='padding: 0.5rem;'>", unsafe_allow_html=True)
-                st.markdown("<h3 style='margin-top: 0; color: #0f172a; font-weight: 700; font-family: Inter;'>Welcome 👋</h3>", unsafe_allow_html=True)
+                st.markdown("<h3 style='margin-top: 0;'>Welcome 👋</h3>", unsafe_allow_html=True)
                 st.caption("Create an account or sign in with your work email to access your private searches and API keys.")
                 st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
 
@@ -126,10 +126,10 @@ if not st.session_state.get("user_email"):
                                 st.query_params["user"] = email_norm
                                 st.rerun()
 
-                st.markdown("<div style='text-align:center; margin-top:1.5rem;'><small style='color:#94a3b8; font-weight: 500;'>Your data remains within your environment.</small></div>", unsafe_allow_html=True)
+                st.markdown("<div style='text-align:center; margin-top:1.5rem;'><small style='color: var(--text-muted); font-weight: 500;'>Your data remains within your environment.</small></div>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("<hr class='tha-divider'>", unsafe_allow_html=True)
+        st.divider()
 
         st.markdown("""
         <div class="features-header">
@@ -154,11 +154,11 @@ if not st.session_state.get("user_email"):
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("<hr class='tha-divider'>", unsafe_allow_html=True)
+        st.divider()
 
         how_col1, how_col2 = st.columns([1.1, 0.9])
         with how_col1:
-            st.markdown("<div class='tha-section-title' style='margin-bottom: 2rem; font-size: 1.8rem;'>How it works</div>", unsafe_allow_html=True)
+            st.markdown("<h2 style='margin-bottom: 2rem;'>How it works</h2>", unsafe_allow_html=True)
             st.markdown(
                 """
                 <div class='tha-hiw-step'>
@@ -182,7 +182,7 @@ if not st.session_state.get("user_email"):
             )
         with how_col2:
             st.markdown("<div style='padding: 1.5rem 0 0 2rem;'>", unsafe_allow_html=True)
-            st.markdown("<div class='tha-section-title' style='margin-bottom: 1.5rem; font-size: 1.5rem;'>Why it stays yours</div>", unsafe_allow_html=True)
+            st.markdown("<h3 style='margin-bottom: 1.5rem;'>Why it stays yours</h3>", unsafe_allow_html=True)
             st.info(
                 "**Data Sovereignty First**\n\nAll data lives entirely in your localized environment. "
                 "API keys are stored securely on a per-user basis, and the application seamlessly interfaces with your choice of commodity LLM providers "

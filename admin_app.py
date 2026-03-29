@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# Inject the Claymorphism Premium Theme (No dark mode toggle needed, hardcoded to light clay in get_theme_css)
+# Inject the Neo-Minimalist SaaS Theme (No dark mode toggle needed, hardcoded in get_theme_css)
 st.markdown(get_theme_css("light"), unsafe_allow_html=True)
 
 
@@ -29,7 +29,7 @@ with get_conn() as conn:
     candidates = conn.execute("SELECT COUNT(*) AS c FROM candidates").fetchone()
     job_cands = conn.execute("SELECT COUNT(*) AS c FROM job_candidates").fetchone()
 
-# Claymorphic Containers for Metrics
+# SaaS Cards for Metrics
 with st.container(border=True):
     col_a, col_b, col_c, col_d = st.columns(4)
     with col_a:
@@ -41,7 +41,7 @@ with st.container(border=True):
     with col_d:
         st.metric("Job–Candidate Links", job_cands["c"])
 
-st.markdown("<hr class='tha-divider'>", unsafe_allow_html=True)
+st.divider()
 st.subheader("Manage Users")
 
 with get_conn() as conn:
